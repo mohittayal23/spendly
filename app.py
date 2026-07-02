@@ -2,7 +2,7 @@ import os
 import sqlite3
 
 from flask import Flask, render_template, request, redirect, url_for, session
-from werkzeug.security import generate_password_hash
+from werkzeug.security import generate_password_hash, check_password_hash
 
 from database.db import get_db, init_db, seed_db
 
@@ -12,6 +12,20 @@ app.secret_key = os.environ.get("SECRET_KEY", "dev")
 with app.app_context():
     init_db()
     seed_db()
+
+
+@app.context_processor
+def inject_current_user():
+    user_id = session.get("user_id")
+    if not user_id:
+        return {"current_user": None}
+
+    conn = get_db()
+    user = conn.execute(
+        "SELECT id, name, email FROM users WHERE id = ?", (user_id,)
+    ).fetchone()
+    conn.close()
+    return {"current_user": user}
 
 
 # ------------------------------------------------------------------ #
@@ -68,13 +82,34 @@ def register():
 
         conn.close()
         session["user_id"] = new_user_id
-        return redirect(url_for("profile"))
+        return redirect(url_for("landing"))
 
     return render_template("register.html")
 
 
-@app.route("/login")
+@app.route("/login", methods=["GET", "POST"])
 def login():
+    if request.method == "POST":
+        email = request.form.get("email", "").strip()
+        password = request.form.get("password", "")
+
+        error = "Invalid email or password."
+
+        if not email or not password:
+            return render_template("login.html", error=error)
+
+        conn = get_db()
+        user = conn.execute(
+            "SELECT id, password_hash FROM users WHERE LOWER(email) = LOWER(?)", (email,)
+        ).fetchone()
+        conn.close()
+
+        if not user or not check_password_hash(user["password_hash"], password):
+            return render_template("login.html", error=error)
+
+        session["user_id"] = user["id"]
+        return redirect(url_for("landing"))
+
     return render_template("login.html")
 
 
@@ -88,14 +123,15 @@ def privacy():
     return render_template("privacy.html")
 
 
+@app.route("/logout")
+def logout():
+    session.pop("user_id", None)
+    return redirect(url_for("landing"))
+
+
 # ------------------------------------------------------------------ #
 # Placeholder routes — students will implement these                  #
 # ------------------------------------------------------------------ #
-
-@app.route("/logout")
-def logout():
-    return "Logout — coming in Step 3"
-
 
 @app.route("/profile")
 def profile():
