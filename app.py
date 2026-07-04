@@ -1,5 +1,6 @@
 import os
 import sqlite3
+from datetime import datetime
 
 from flask import Flask, render_template, request, redirect, url_for, session
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -26,6 +27,11 @@ def inject_current_user():
     ).fetchone()
     conn.close()
     return {"current_user": user}
+
+
+@app.template_filter("inr")
+def format_inr(value):
+    return f"{value:,.0f}"
 
 
 # ------------------------------------------------------------------ #
@@ -135,7 +141,66 @@ def logout():
 
 @app.route("/profile")
 def profile():
-    return "Profile page — coming in Step 4"
+    user_id = session.get("user_id")
+    if not user_id:
+        return redirect(url_for("login"))
+
+    conn = get_db()
+    user = conn.execute(
+        "SELECT id, name, email, created_at FROM users WHERE id = ?", (user_id,)
+    ).fetchone()
+    totals = conn.execute(
+        "SELECT COUNT(*) AS count, COALESCE(SUM(amount), 0) AS total FROM expenses WHERE user_id = ?",
+        (user_id,),
+    ).fetchone()
+    category_rows = conn.execute(
+        "SELECT category, COALESCE(SUM(amount), 0) AS total FROM expenses "
+        "WHERE user_id = ? GROUP BY category ORDER BY total DESC",
+        (user_id,),
+    ).fetchall()
+    recent_rows = conn.execute(
+        "SELECT amount, category, date, description FROM expenses "
+        "WHERE user_id = ? ORDER BY date DESC, id DESC LIMIT 5",
+        (user_id,),
+    ).fetchall()
+    conn.close()
+
+    avg_amount = totals["total"] / totals["count"] if totals["count"] else 0
+    member_since = datetime.strptime(
+        user["created_at"], "%Y-%m-%d %H:%M:%S"
+    ).strftime("%b %Y")
+    avatar_letter = user["name"][0].upper() if user["name"] else "?"
+
+    max_total = max((row["total"] for row in category_rows), default=0)
+    categories = [
+        {
+            "category": row["category"],
+            "total": row["total"],
+            "width_pct": round(row["total"] / max_total * 100) if max_total else 0,
+        }
+        for row in category_rows
+    ]
+    recent = [
+        {
+            "date_display": datetime.strptime(row["date"], "%Y-%m-%d").strftime("%b %d"),
+            "category": row["category"],
+            "description": row["description"],
+            "amount": row["amount"],
+        }
+        for row in recent_rows
+    ]
+
+    return render_template(
+        "profile.html",
+        user=user,
+        member_since=member_since,
+        avatar_letter=avatar_letter,
+        total_count=totals["count"],
+        total_amount=totals["total"],
+        avg_amount=avg_amount,
+        categories=categories,
+        recent=recent,
+    )
 
 
 @app.route("/expenses/add")

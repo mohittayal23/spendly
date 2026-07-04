@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}Profile — Spendly{% endblock %}
+
+{% block content %}
+
+<section class="profile-section">
+    <div class="profile-container">
+
+        <span class="profile-eyebrow">Account</span>
+
+        <div class="profile-identity">
+            <div class="profile-avatar">{{ avatar_letter }}</div>
+            <div>
+                <div class="profile-name">{{ user.name }}</div>
+                <div class="profile-meta">
+                    <span>{{ user.email }}</span>
+                    <span class="dot">&middot;</span>
+                    <span>Member since {{ member_since }}</span>
+                </div>
+            </div>
+        </div>
+
+        <section>
+            <div class="section-label">Spending Summary</div>
+            <div class="stats-row">
+                <div class="stat-card">
+                    <div class="stat-label">Total spent</div>
+                    <div class="stat-value"><span class="rupee">₹</span>{{ total_amount|inr }}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Expenses logged</div>
+                    <div class="stat-value">{{ total_count }}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Average per expense</div>
+                    <div class="stat-value"><span class="rupee">₹</span>{{ avg_amount|inr }}</div>
+                </div>
+            </div>
+        </section>
+
+        {% if total_count == 0 %}
+        <section>
+            <div class="empty-card">
+                <div class="empty-title">No expenses yet</div>
+                <div class="empty-body">Once you log your first expense, your spending summary and category breakdown will show up here.</div>
+            </div>
+        </section>
+        {% else %}
+        <section>
+            <div class="section-label">By Category</div>
+            <div class="category-card">
+                <div class="category-list">
+                    {% for c in categories %}
+                    <div class="category-row">
+                        <span class="category-name">{{ c.category }}</span>
+                        <div class="category-track">
+                            <div class="category-fill cat-{{ c.category|lower }}" style="width: {{ c.width_pct }}%;"></div>
+                        </div>
+                        <span class="category-amt">₹{{ c.total|inr }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </section>
+
+        <section>
+            <div class="section-label">Recent Expenses</div>
+            <div class="recent-card">
+                {% for e in recent %}
+                <div class="recent-row">
+                    <span class="recent-date">{{ e.date_display }}</span>
+                    <div class="recent-main">
+                        <span class="cat-tag cat-{{ e.category|lower }}">{{ e.category }}</span>
+                        <span class="recent-desc">{{ e.description }}</span>
+                    </div>
+                    <span class="recent-amt">₹{{ e.amount|inr }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+        {% endif %}
+
+    </div>
+</section>
+
+{% endblock %}
